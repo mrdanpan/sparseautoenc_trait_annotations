@@ -6,7 +6,7 @@
 Installation will be done automatically by uv package manager when the python scripts are run.
 
 **Step 1**: Download BIOSCAN-5M
-
+# train split of cropped 256px images (~289K images)
 ```
 pip install bioscan-dataset
 ```
@@ -18,10 +18,19 @@ ds = BIOSCAN5M("~/Datasets/bioscan-5m", download=True)
 
 **Step 2**: Preprocess BIOSCAN-5M
 ```
+/opt/miniconda3/envs/bmcb/bin/python morph_trait_annotation-8016/preprocess_bioscan.py \
+    --csv-file bioscan_5m/bioscan5m/metadata/csv/BIOSCAN_5M_Insect_Dataset_metadata.csv \
+    --image-dir bioscan_5m/bioscan5m/images/cropped_256/train \
+    --out-dir ./organized_species \
+    --split train
+```
 python process_bioscan.py --csv-file /path/to/csv/file/in/bioscan-5m/ --image-dir /path/to/images/dir/in/bioscan-5m/
 ```
 
 **Step 3**: Dump DINOv2 activations for BIOSCAN-5M.
+```
+/opt/miniconda3/envs/bmcb/bin/python
+```
 ```
 uv run python -m saev activations \
   --vit-family dinov2 \
