@@ -4,7 +4,7 @@ To save lots of activations, we want to do things in parallel, with lots of slur
 This module handles that additional complexity.
 
 Conceptually, activations are either thought of as
-
+x
 1. A single [n_imgs x n_layers x (n_patches + 1), d_vit] tensor. This is a *dataset*
 2. Multiple [n_imgs_per_shard, n_layers, (n_patches + 1), d_vit] tensors. This is a set of sharded activations.
 """

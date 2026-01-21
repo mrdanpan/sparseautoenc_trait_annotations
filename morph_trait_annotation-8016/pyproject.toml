@@ -25,7 +25,7 @@ dependencies = [
     "pacmap",
     "umap-learn",
     "seaborn",
-    "vllm",
+    "vllm; sys_platform == 'linux'",
     "together",
     "shapely",
     "kagglehub"

@@ -1,3 +1,38 @@
+Metadata-Version: 2.4
+Name: saev
+Version: 0.1.0
+Summary: Sparse autoencoders for vision transformers in PyTorch
+Requires-Python: ==3.11.*
+Description-Content-Type: text/markdown
+Requires-Dist: altair>=5.4.1
+Requires-Dist: beartype>=0.19.0
+Requires-Dist: datasets>=3.0.1
+Requires-Dist: einops>=0.8.0
+Requires-Dist: jaxtyping>=0.2.34
+Requires-Dist: marimo>=0.9.10
+Requires-Dist: matplotlib>=3.9.2
+Requires-Dist: open-clip-torch>=2.28.0
+Requires-Dist: pillow>=10.4.0
+Requires-Dist: polars>=1.12.0
+Requires-Dist: submitit>=1.5.2
+Requires-Dist: torch>=2.5.0
+Requires-Dist: tqdm>=4.66.5
+Requires-Dist: tyro>=0.8.12
+Requires-Dist: wandb>=0.19.9
+Requires-Dist: scikit-learn
+Requires-Dist: transformers
+Requires-Dist: pacmap
+Requires-Dist: umap-learn
+Requires-Dist: seaborn
+Requires-Dist: vllm; sys_platform == "linux"
+Requires-Dist: together
+Requires-Dist: shapely
+Requires-Dist: kagglehub
+Provides-Extra: classification
+Requires-Dist: scipy>=1.15.1; extra == "classification"
+Provides-Extra: training
+Requires-Dist: wandb>=0.19.6; extra == "training"
+
 # Code for submission: Automatic Image-Level Morphological Trait Annotation for Organismal Images
 
 **Note**: We use the SAE training code from the publicly available [SAEV repository](https://github.com/OSU-NLP-Group/saev). The same is copied here for convenience.
@@ -31,18 +66,17 @@ python process_bioscan.py --csv-file /path/to/csv/file/in/bioscan-5m/ --image-di
 ```
 ```
 ```
-uv run python -m saev activations \
-  --device cpu \
+uv run python -m saev morph_trait_annotation-8016/saev/activations.py \
   --vit-family dinov2 \
   --vit-ckpt dinov2_vitb14 \
-  --vit-batch-size 256 \
+  --vit-batch-size 1024 \
   --d-vit 768 \
   --n-patches-per-img 256 \
-  "--vit-layers" "-2" \
-  --dump-to ./activations \
-  --n-patches-per-shard 2400000 \
+  --vit-layers -2 \
+  --dump-to /path/to/activations/dir \
+  --n-patches-per-shard 2_4000_000 \
   data:image-folder-dataset \
-  --data.root /Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/bioscan_5m/bioscan5m/images/cropped_256
+  --data.root /path/to/processed/bioscan/
 ```
 
 **Step 4**: Train a sparse autoencoder 
