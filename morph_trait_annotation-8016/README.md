@@ -45,7 +45,26 @@ uv run python -m saev activations \
   --data.root /Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/bioscan_5m/bioscan5m/images/cropped_256
 ```
 
+OUR VERSION:
+/opt/miniconda3/envs/bmcb/bin/python our_code/vit_activations.py \
+    --data-root /Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/bioscan_5m/bioscan5m/images/cropped_256 \
+    --dump-to ./activations \
+    --device cpu \
+    --batch-size 256
+
 **Step 4**: Train a sparse autoencoder 
+
+uv run python -m saev train \
+  --data.shard-root ./activations \
+  --data.layer -2 \
+  --data.patches patches \
+  --data.scale-mean False \
+  --data.scale-norm False \
+  --sae.d-vit 768 \
+  --sae.exp-factor 32 \
+  --ckpt-path /path/to/sae/ckpt/ \
+  --lr 1e-3 > LOG.txt 2>&1
+
 ```
 uv run python -m saev train \
   --data.shard-root /path/to/activations/dir \
