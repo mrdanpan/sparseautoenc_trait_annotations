@@ -4,88 +4,78 @@ Preprocess the BIOSCAN-5M dataset by grouping images by species into species-spe
 
 import csv
 import os
-import shutil
 from collections import defaultdict
 from tqdm import tqdm
 import argparse
 
-def get_species_name(row):
-    """Return species name as a single string with underscores."""
-    species = row[9]
-    return '_'.join(species.split())
 
-def is_species(row):
-    """Check if row contains species-level annotation."""
-    return len(row[9]) > 0
-
-def find_images(root_dir):
-    """Return dict mapping process_id (filename without ext) -> full path."""
-    image_map = {}
+def get_all_images_path(root_dir): 
+    """
+    Walk through the image directory and store all image file paths in a dictionary, 
+    indexed by their filename without extension.
+    """
+    image_paths = {}
     for dirpath, _, filenames in os.walk(root_dir):
-        for fname in filenames:
-            if not fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+        for filename in filenames: 
+            if not filename.lower().endswith(('.jpg', '.jpeg', '.png')): 
                 continue
-            pid = os.path.splitext(fname)[0]
-            image_map[pid] = os.path.join(dirpath, fname)
-    return image_map
+            image_id = os.path.splitext(filename)[0]
+            image_paths[image_id] = os.path.join(dirpath, filename)
+    return image_paths
+
 
 def main(args):
     os.makedirs(args.out_dir, exist_ok=True)
 
-    print("Building image map...")
-    image_map = find_images(args.image_dir)
-    print(f"Found {len(image_map)} images.")
+    print("Scanning image directory and getting all image paths...")
+    image_paths = get_all_images_path(args.image_dir)
+    print(f"Total images found: {len(image_paths)}")
 
-    # species -> list of process_ids
+    # Build a dictionary mapping each species to its list of sample IDs
     species_dict = defaultdict(list)
-
-    # Read CSV
     with open(args.csv_file, newline='') as csvfile:
         reader = csv.reader(csvfile)
-        header = next(reader)  # skip header
+        header = next(reader)  # Skip the header row
 
         for row in tqdm(reader, desc="Processing CSV"):
             if args.split and row[20] != args.split:
                 continue
-            if is_species(row):
-                species_name = get_species_name(row)
+
+            # Only consider rows with species-level annotation
+            if len(row[9]) > 0:
+                # Join species name as a single string with underscore
+                species_name = '_'.join(row[9].split())
                 species_dict[species_name].append(row[0])
 
-    print(f"Found {len(species_dict)} species with species-level annotation.")
+    print(f"Total unique species with species-level annotation: {len(species_dict)}")
 
-    # Create folders and copy images
+    # Create a folder for each species and create symlinks to their images
+    # (using symlinks is faster than copying the actual image files)
     total_linked = 0
-    total_missing = 0
     species_with_images = 0
-    species_without_images = 0
 
-    for species, ids in tqdm(species_dict.items(), desc="Copying images"):
-        available_ids = [pid for pid in ids if pid in image_map]
-        if not available_ids:
-            species_without_images += 1
+    for species, ids in tqdm(species_dict.items(), desc="Creating symlinks"):
+        valid_image_ids  = [image_id for image_id in ids if image_id in image_paths]
+
+        if not valid_image_ids :
             continue
 
         species_with_images += 1
         species_dir = os.path.join(args.out_dir, species)
         os.makedirs(species_dir, exist_ok=True)
 
-        for pid in available_ids:
-            src = image_map[pid]
-            dst = os.path.join(species_dir, f"{pid}.jpg")
+        for image_id in valid_image_ids :
+            src = image_paths[image_id]
+            dst = os.path.join(species_dir, f"{image_id}.jpg")
             if not os.path.exists(dst):
-                shutil.copy(src, dst)
+                os.symlink(src, dst)
 
-        total_linked += len(available_ids)
-        total_missing += len(ids) - len(available_ids)
+        total_linked += len(valid_image_ids)
 
-    # Summary
-    print("\n=== Summary ===")
+    print("\n--- Preprocessing Results ---")
     print(f"Species with images: {species_with_images}")
-    print(f"Species without images: {species_without_images}")
-    print(f"Total images copied: {total_linked}")
-    print(f"Total missing images: {total_missing}")
-    if total_linked + total_missing > 0:
-        print(f"Match rate: {total_linked / (total_linked + total_missing) * 100:.1f}%")
+    print(f"Total images linked: {total_linked}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
