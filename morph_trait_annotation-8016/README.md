@@ -39,7 +39,7 @@ uv run python -m saev activations \
   --d-vit 768 \
   --n-patches-per-img 256 \
   "--vit-layers" "-2" \
-  --dump-to ./activations \
+  --dump-to ././activations \
   --n-patches-per-shard 2400000 \
   data:image-folder-dataset \
   --data.root /Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/bioscan_5m/bioscan5m/images/cropped_256
