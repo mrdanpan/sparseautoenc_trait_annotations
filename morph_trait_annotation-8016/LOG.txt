@@ -1,0 +1,44 @@
+warning: The `tool.uv.dev-dependencies` field (used in `pyproject.toml`) is deprecated and will be removed in a future release; use `dependency-groups.dev` instead
+warning: `VIRTUAL_ENV=/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/reqtest` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/saev/__main__.py", line 87, in <module>
+    tyro.extras.subcommand_cli_from_dict({
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/tyro/extras/_subcommand_cli_from_dict.py", line 125, in subcommand_cli_from_dict
+    return cli(
+           ^^^^
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/tyro/_cli.py", line 234, in cli
+    output = _cli_impl(
+             ^^^^^^^^^^
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/tyro/_cli.py", line 601, in _cli_impl
+    get_out, consumed_keywords = _calling.callable_with_args(
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/tyro/_calling.py", line 224, in callable_with_args
+    value = get_value()
+            ^^^^^^^^^^^
+  File "<@beartype(__main__.train) at 0x100d55b20>", line 54, in train
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/saev/__main__.py", line 43, in train
+    from . import config, training
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/saev/training.py", line 17, in <module>
+    import wandb
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/wandb/__init__.py", line 22, in <module>
+    from wandb.sdk.lib import wb_logging as _wb_logging
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/wandb/sdk/__init__.py", line 25, in <module>
+    from .artifacts.artifact import Artifact
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/wandb/sdk/artifacts/artifact.py", line 43, in <module>
+    from wandb.apis.normalize import normalize_exceptions
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/wandb/apis/__init__.py", line 45, in <module>
+    from .internal import Api as InternalApi  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/wandb/apis/internal.py", line 5, in <module>
+    from wandb.sdk.internal.internal_api import Api as InternalApi
+  File "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/morph_trait_annotation-8016/.venv/lib/python3.11/site-packages/wandb/sdk/internal/internal_api.py", line 39, in <module>
+    from wandb.analytics import get_sentry
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1032, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
+KeyboardInterrupt

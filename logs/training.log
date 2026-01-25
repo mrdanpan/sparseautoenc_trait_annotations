@@ -1,0 +1,12 @@
+[2026-01-25 17:53:21] [INFO] Using device: cpu
+[2026-01-25 17:53:21] [INFO] File size: 7030.9 MB
+[2026-01-25 17:53:21] [INFO] Number of images: 9338
+[2026-01-25 17:53:21] [INFO] Loading activations dataset...
+[2026-01-25 17:53:21] [INFO] Dataset size: 2390528 examples
+[2026-01-25 17:53:21] [INFO] Activation dimension: 768
+[2026-01-25 17:53:21] [INFO] Patches per epoch: 2,390,528
+[2026-01-25 17:53:21] [INFO] Target patches: 43,507,609
+[2026-01-25 17:53:21] [INFO] Calculated epochs: 18
+[2026-01-25 17:53:21] [INFO] Total steps: 10,494
+[2026-01-25 17:53:21] [INFO] SAE hidden dim: 24576
+[2026-01-25 17:53:26] [INFO] Epoch 1/18

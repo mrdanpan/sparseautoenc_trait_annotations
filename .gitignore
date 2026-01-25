@@ -1,5 +1,3 @@
-
-
 .DS_Store
 6600_Automatic_Image_Level_Mor.pdf
 bioscan_5m
@@ -7,3 +5,4 @@ organized_species
 morph_trait_annotation-8016/activations/*
 /activations
 /activations_ourmodel
+/activations_REAL

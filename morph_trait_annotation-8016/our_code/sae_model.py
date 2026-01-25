@@ -13,7 +13,7 @@ from tqdm import tqdm
 import logging 
 
 # Logging details
-LOG_DIR = "./logs"
+LOG_DIR = "../logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
@@ -27,8 +27,8 @@ logging.basicConfig(
 logger = logging.getLogger("sae_training")
 
 # Config details
-ACTIVATIONS_DIR = "./activations"
-CHECKPOINT_DIR = "./checkpoints"
+ACTIVATIONS_DIR = "../activations"
+CHECKPOINT_DIR = "../checkpoints"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # SAE hyperparameters (matching Table D.5)
@@ -379,7 +379,7 @@ def train():
     logger.info(f"Using device: {DEVICE}")
     
     # Metadata
-    ex_shard_path = "./activations/acts000000.bin"
+    ex_shard_path = "../activations/acts000000.bin"
     file_size = os.path.getsize(ex_shard_path)
     bytes_per_img = 1 * 257 * 768 * 4
     n_imgs = file_size // bytes_per_img
