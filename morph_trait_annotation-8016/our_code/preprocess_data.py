@@ -6,7 +6,12 @@ import csv
 import os
 from collections import defaultdict
 from tqdm import tqdm
-import argparse
+
+
+# ============== CONFIG ==============
+IMAGE_DIR = "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/bioscan_5m/bioscan5m/images/cropped_256"
+CSV_FILE_PATH = "/Users/danielpanariti/Documents/universite/m2_2025-2026_MIND/s3/deep_l/projet/bioscan_5m/bioscan5m/metadata/csv/BIOSCAN_5M_Insect_Dataset_metadata.csv"
+OUTPUT_DIR = "./preprocessed_images"
 
 
 def get_all_images_path(root_dir): 
@@ -24,23 +29,20 @@ def get_all_images_path(root_dir):
     return image_paths
 
 
-def main(args):
-    os.makedirs(args.out_dir, exist_ok=True)
+def main():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("Scanning image directory and getting all image paths...")
-    image_paths = get_all_images_path(args.image_dir)
+    image_paths = get_all_images_path(IMAGE_DIR)
     print(f"Total images found: {len(image_paths)}")
 
     # Build a dictionary mapping each species to its list of sample IDs
     species_dict = defaultdict(list)
-    with open(args.csv_file, newline='') as csvfile:
+    with open(CSV_FILE_PATH, newline='') as csvfile:
         reader = csv.reader(csvfile)
         header = next(reader)  # Skip the header row
 
         for row in tqdm(reader, desc="Processing CSV"):
-            if args.split and row[20] != args.split:
-                continue
-
             # Only consider rows with species-level annotation
             if len(row[9]) > 0:
                 # Join species name as a single string with underscore
@@ -61,7 +63,7 @@ def main(args):
             continue
 
         species_with_images += 1
-        species_dir = os.path.join(args.out_dir, species)
+        species_dir = os.path.join(OUTPUT_DIR, species)
         os.makedirs(species_dir, exist_ok=True)
 
         for image_id in valid_image_ids :
@@ -78,10 +80,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--csv-file", type=str, required=True, help="Path to BIOSCAN CSV metadata")
-    parser.add_argument("--image-dir", type=str, required=True, help="Path to BIOSCAN images")
-    parser.add_argument("--out-dir", type=str, required=True, help="Output directory to store images by species")
-    parser.add_argument("--split", type=str, default=None, help="Optional: train, val, test, or None for all")
-    args = parser.parse_args()
-    main(args)
+    main()

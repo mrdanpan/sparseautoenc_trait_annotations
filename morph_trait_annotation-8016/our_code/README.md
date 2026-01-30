@@ -26,7 +26,7 @@ ds = BIOSCAN5M("~/Datasets/bioscan-5m", download=True)
 ### 2. Preprocess BIOSCAN-5M dataset
 
 ```bash
- python preprocess_data.py --csv-file path/to/BIOSCAN_5M_Insect_Dataset_metadata.csv --image-dir /path/to/images/ --out-dir /path/to/output/
+python our_code/preprocess_data.py
 ```
 
 ### 3. Get the ViT activations
