@@ -29,6 +29,7 @@ CONFIG = {
     "n_patches": 256,
     "mllm_backend": "qwen",
     "openai_model": "gpt-5-mini",
+    "n_images": 1,
     "activation_thresh": 0.1,
     "trait_thresh": 1e-6,
     "debug": True, # True if we want to use a subset of data (true for now)
@@ -311,25 +312,29 @@ class QwenLocalBackend(MLLMBackend):
         print("Qwen model loaded")
 
     def describe_region(self, image, prompt):
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "image"},
-                {"type": "text", "text": prompt}
-            ]
-        }]
+        """Single image mode"""
+        return self.describe_regions([image], prompt)
+
+    def describe_regions(self, images, prompt):
+        content = []
+        for _ in images:
+            content.append({"type": "image"})
+        content.append({"type": "text", "text": prompt})
+
+        messages = [{"role": "user", "content": content}]
         # chat template
         text = self.processor.apply_chat_template(
             messages,
             add_generation_prompt=True
         )
         # process inputs
-        inputs = self.processor(text=text, images=[image], padding=True, return_tensors="pt").to(self.device)
+        inputs = self.processor(text=text, images=images, padding=True, return_tensors="pt").to(self.device)
+        max_tokens = 256 if len(images) > 1 else 200
         # generate response
         with torch.no_grad():
             output_ids = self.model.generate(
                 **inputs,
-                max_new_tokens=200,
+                max_new_tokens=max_tokens,
                 temperature=0.1,
                 do_sample=True,
                 eos_token_id=self.processor.tokenizer.eos_token_id
@@ -350,28 +355,34 @@ class OpenAIBackend(MLLMBackend):
         print(f"OpenAI model loaded {model}")
 
     def describe_region(self, image, prompt):
-        # we convert PIL image to base64
-        buffered = BytesIO()
-        image.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        """Single image mode."""
+        return self.describe_regions([image], prompt)
+
+    def describe_regions(self, images, prompt):
+        content = []
+        for image in images:
+            # we convert PIL image to base64
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{img_base64}"
+                }
+            })
+        content.append({
+            "type": "text",
+            "text": prompt
+        })
+        max_tokens = 256 if len(images) > 1 else 200
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{
                 "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{img_base64}"
-                        }
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
+                "content": content
             }],
-            max_tokens=200,
+            max_tokens=max_tokens,
             temperature=0.1
         )
 
@@ -387,7 +398,7 @@ def get_mllm_backend(backend_name, **kwargs):
 
 # trait verbalization
 
-DEFAULT_PROMPT = """You are given an image of an insect with red bounding boxes highlighting a specific region.
+PROMPT_SINGLE_IMAGE = """You are given an image of an insect with red bounding boxes highlighting a specific region.
 
 1. Determine whether the highlighted region contains a visible body part of the insect or only background. If it appears to be background, respond with "background".
 
@@ -397,45 +408,136 @@ DEFAULT_PROMPT = """You are given an image of an insect with red bounding boxes 
 
 IMPORTANT: Do not infer or assume information that is not directly observable. Keep your response under 100 words."""
 
-def verbalize_traits(dataset, prominent_traits, mllm_backend, output_dir, display_transform, prompt=DEFAULT_PROMPT):
+PROMPT_MULTI_IMAGE = """You are given three images of insects, each with red bounding boxes highlighting specific regions.
+
+For each image:
+1. For every highlighted region, determine whether it contains a visible insect body part or just background. If it is mostly background, respond with "background".
+2. If it contains a visible body part, identify which part it is (e.g., leg, wing, antenna), and describe its visible morphological traits: shape, size, color, texture, and any distinct markings. Use only the visual information present in the image.
+
+After analyzing all three highlighted regions:
+3. Identify and list the morphological traits that are *common across all three regions*, *solely based on what is visible in all images*.
+
+*Important Instructions*:
+- Do not infer or assume information that is not directly observable. Avoid adding external knowledge.
+- Use only what is clearly visible.
+- Be concise. Limit the total response to under 200 tokens.
+
+*Output Format*:
+- [Image 1]:
+    - [Body Part]: [Visible trait]
+- [Image 2]:
+    - [Body Part]: [Visible trait]
+- [Image 3]:
+    - [Body Part]: [Visible trait]
+- [Common Traits Across All Three Images]:
+    - [Body Part]: [Shared visible trait]
+"""
+
+
+def verbalize_traits(dataset, prominent_traits, mllm_backend, output_dir, display_transform, n_images=1):
     """Use MLLM to describe the boxed regions for prominent traits"""
     os.makedirs(output_dir, exist_ok=True)
+    if n_images == 3:
+        prompt = PROMPT_MULTI_IMAGE
+    else:
+        prompt = PROMPT_SINGLE_IMAGE
     response_file = os.path.join(output_dir, "trait_descriptions.jsonl")
 
     with open(response_file, "w") as f:
         for species, traits in tqdm(prominent_traits.items(), desc="Processing species"):
             species_dir = os.path.join(output_dir, species.replace(' ', '_'))
             os.makedirs(species_dir, exist_ok=True)
-            for trait in tqdm(traits, desc=f"  {species}", leave=False):
-                ex_id = trait['ex_id']
-                latent_idx = trait['latent_idx']
-                patch_indices = trait['patch_idx']
-                # the original img
-                image, _ = dataset[ex_id]
-                image_display = display_transform(image)
-                # converting patch idx to coords
-                patch_coords = patch_index_to_coordinates(patch_indices)
-                # bounding boxes
-                annotated_image = draw_bounding_boxes(image_display, patch_coords, label=f"Latent {latent_idx}")
-                img_path = os.path.join(species_dir, f"latent_{latent_idx}_ex_{ex_id}.png")
-                annotated_image.save(img_path)
-                try:
-                    response = mllm_backend.describe_region(annotated_image, prompt)
-                except Exception as e:
-                    print(f"MLLM error for {species}, latent {latent_idx}: {e}")
-                    response = f"ERROR: {str(e)}"
-                result = {
-                    'species': species,
-                    'ex_id': ex_id,
-                    'latent_idx': latent_idx,
-                    'patch_indices': patch_indices,
-                    'response': response
-                }
-                f.write(json.dumps(result) + '\n')
-                f.flush()
 
-                print(f"\n[{species}] Latent {latent_idx}:")
-                print(f"  Response: {response[:200]}...")
+            if n_images == 3:
+                latent_to_traits = defaultdict(list)
+                for trait in traits:
+                    latent_to_traits[trait['latent_idx']].append(trait)
+
+                for latent_idx, latent_traits in tqdm(latent_to_traits.items(), desc=f"  {species}", leave=False):
+                    if len(latent_traits) < 3:
+                        print(f"  Skipping latent {latent_idx}: only {len(latent_traits)} examples (need 3)")
+                        continue
+
+                    chosen_traits = random.sample(latent_traits, 3)
+                    images = []
+                    all_patch_indices = []
+                    all_ex_ids = []
+
+                    for i, trait in enumerate(chosen_traits):
+                        ex_id = trait['ex_id']
+                        patch_indices = trait['patch_idx']
+                        # original img
+                        image, _ = dataset[ex_id]
+                        image_display = display_transform(image)
+                        patch_coords = patch_index_to_coordinates(patch_indices)
+                        annotated_image = draw_bounding_boxes(
+                            image_display,
+                            patch_coords,
+                            label=f"Image {i + 1}"
+                        )
+                        images.append(annotated_image)
+                        all_patch_indices.append(patch_indices)
+                        all_ex_ids.append(ex_id)
+                        img_path = os.path.join(species_dir, f"latent_{latent_idx}_img{i + 1}_ex_{ex_id}.png")
+                        annotated_image.save(img_path)
+                        try:
+                            response = mllm_backend.describe_regions(images, prompt)
+
+                            # Extract common traits section if present
+                            if '[Common Traits Across All Three Images]:' in response:
+                                common_part = response.split('[Common Traits Across All Three Images]:')[1].strip()
+                            else:
+                                common_part = response
+
+                        except Exception as e:
+                            print(f"MLLM error for {species}, latent {latent_idx}: {e}")
+                            response = f"ERROR: {str(e)}"
+                            common_part = response
+
+                        result = {
+                            'species': species,
+                            'ex_ids': all_ex_ids,
+                            'latent_idx': latent_idx,
+                            'patch_indices': all_patch_indices,
+                            'response': response,
+                            'common_traits': common_part,
+                            'n_images': 3
+                        }
+                        f.write(json.dumps(result) + '\n')
+                        f.flush()
+
+                        print(f"\n[{species}] Latent {latent_idx} (3 images):")
+                        print(f"  Common traits: {common_part[:200]}...")
+
+            else: # single img
+                for trait in tqdm(traits, desc=f"  {species}", leave=False):
+                    ex_id = trait['ex_id']
+                    latent_idx = trait['latent_idx']
+                    patch_indices = trait['patch_idx']
+
+                    image, _ = dataset[ex_id]
+                    image_display = display_transform(image)
+                    patch_coords = patch_index_to_coordinates(patch_indices)
+                    annotated_image = draw_bounding_boxes(image_display, patch_coords, label=f"Latent {latent_idx}")
+                    img_path = os.path.join(species_dir, f"latent_{latent_idx}_ex_{ex_id}.png")
+                    annotated_image.save(img_path)
+                    try:
+                        response = mllm_backend.describe_region(annotated_image, prompt)
+                    except Exception as e:
+                        print(f"MLLM error for {species}, latent {latent_idx}: {e}")
+                        response = f"ERROR: {str(e)}"
+                    result = {
+                        'species': species,
+                        'ex_id': ex_id,
+                        'latent_idx': latent_idx,
+                        'patch_indices': patch_indices,
+                        'response': response,
+                        'n_images': 1
+                    }
+                    f.write(json.dumps(result) + '\n')
+                    f.flush()
+                    print(f"\n[{species}] Latent {latent_idx}:")
+                    print(f"  Response: {response[:200]}...")
 
 # main
 
@@ -545,7 +647,7 @@ def main():
         mllm = get_mllm_backend("openai", model=CONFIG["openai_model"])
 
     display_transform = get_display_transform()
-    verbalize_traits(dataset, prominent_traits, mllm, CONFIG["output_dir"], display_transform)
+    verbalize_traits(dataset, prominent_traits, mllm, CONFIG["output_dir"], display_transform, n_images=CONFIG["n_images"])
 
     print(f"Results saved to: {CONFIG['output_dir']}")
 
