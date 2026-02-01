@@ -24,6 +24,8 @@ CONFIG = {
     "data_dir": "/workspace/Datasets/bioscan-5m/bioscan5m/images/cropped_256/train",
     "sae_checkpoint": "/workspace/checkpoints/sae.pt",
     "output_dir": "/workspace/trait_output",
+    "use_saved_activations": False,
+    "activations_dir": "/workspace/Datasets/bioscan_activations/7826a159f94da805f7a22de978079f6e0bdf25d1871e3e60dcf48905950cd053",
     "vit_checkpoint": "dinov2_vitb14",
     "layer_id": 10,
     "n_patches": 256,
@@ -185,6 +187,90 @@ def draw_bounding_boxes(image, patch_coords, label=None, color="red", width=2):
     return image
 
 # data loading
+
+class SavedActivationsDataset:
+    """Load pre-saved ViT activations from .bin files"""
+    def __init__(self, activations_dir, layer_idx=0):
+        self.activations_dir = activations_dir
+        self.layer_idx = layer_idx
+        metadata_path = os.path.join(activations_dir, "metadata.json")
+        with open(metadata_path, 'r') as f:
+            self.metadata = json.load(f)
+        self.d_vit = self.metadata["d_vit"]
+        self.n_patches = self.metadata["n_patches_per_img"]
+        self.n_imgs = self.metadata["n_imgs"]
+        self.n_layers = len(self.metadata["layers"])
+        self.shard_files = sorted([
+            f for f in os.listdir(activations_dir)
+            if f.startswith("acts") and f.endswith(".bin")
+        ])
+        n_patches_with_cls = self.n_patches + 1
+        self.imgs_per_shard = (
+                self.metadata["n_patches_per_shard"]
+                // self.n_layers
+                // n_patches_with_cls
+        )
+        self._cached_shard_idx = -1
+        self._cached_data = None
+
+        print(f"Loaded activation metadata: {self.n_imgs} images, {self.d_vit}d, {self.n_patches} patches")
+
+    def _load_shard(self, shard_idx):
+        """Load a shard file into memory"""
+        if shard_idx == self._cached_shard_idx:
+            return self._cached_data
+        shard_path = os.path.join(self.activations_dir, self.shard_files[shard_idx])
+        if shard_idx == len(self.shard_files) - 1:
+            imgs_in_previous = shard_idx * self.imgs_per_shard
+            imgs_in_this_shard = self.n_imgs - imgs_in_previous
+        else:
+            imgs_in_this_shard = self.imgs_per_shard
+
+        shape = (imgs_in_this_shard, self.n_layers, self.n_patches + 1, self.d_vit)
+        data = np.memmap(shard_path, dtype=np.float32, mode='r', shape=shape)
+
+        self._cached_shard_idx = shard_idx
+        self._cached_data = data
+        return data
+
+    def get_image_activations(self, img_idx):
+        """Get activations for a single image"""
+        shard_idx = img_idx // self.imgs_per_shard
+        pos_in_shard = img_idx % self.imgs_per_shard
+
+        data = self._load_shard(shard_idx)
+        acts = data[pos_in_shard, self.layer_idx, 1:, :]
+        return torch.from_numpy(acts.copy())
+
+    def __len__(self):
+        return self.n_imgs
+
+def load_sae_features_from_saved(activations_dir, sae, device="cuda", layer_idx=0, subset_indices=None):
+    """Load pre-saved activations and run them through the SAE"""
+    act_dataset = SavedActivationsDataset(activations_dir, layer_idx=layer_idx)
+    all_features = []
+    if subset_indices is not None:
+        indices = subset_indices
+    else:
+        indices = range(len(act_dataset))
+    sae.eval()
+    batch_size = 32
+    with torch.no_grad():
+        for start in tqdm(range(0, len(indices), batch_size), desc="Loading saved activations"):
+            end = min(start + batch_size, len(indices))
+            batch_indices = [indices[i] for i in range(start, end)]
+            batch_acts = []
+            for idx in batch_indices:
+                acts = act_dataset.get_image_activations(idx)
+                batch_acts.append(acts)
+
+            batch_acts = torch.stack(batch_acts).to(device)  # [batch, n_patches, d_vit]
+            _, f_x, _ = sae(batch_acts)  # [batch, n_patches, sae_dim]
+
+            for i in range(f_x.shape[0]):
+                all_features.append(f_x[i].cpu())
+
+    return all_features, act_dataset.metadata
 
 def load_image_dataset(data_dir, batch_size=32, subset_size=None):
     """Load ImageFolder dataset
@@ -553,12 +639,6 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
-    print("Loading DINOv2...")
-    vit = DinoV2Wrapper(CONFIG["vit_checkpoint"])
-    vit_recorder = ActivationRecorder(vit, CONFIG["n_patches"], [CONFIG["layer_id"]])
-    vit_recorder = vit_recorder.to(device)
-    vit_recorder.eval()
-
     print(f"Loading SAE from {CONFIG['sae_checkpoint']}:")
     sae, sae_cfg = load_sae_checkpoint(CONFIG["sae_checkpoint"], device)
     print(f"SAE config: d_vit={sae_cfg['d_vit']}, expansion={sae_cfg['exp_factor']}")
@@ -578,10 +658,35 @@ def main():
 
     print(f"Loaded {len(dataset)} images from {len(class_names)} classes")
     print("Extracting SAE features:")
-    transform = get_image_transform()
-    features, labels = extract_sae_features(
-        dataloader, vit_recorder, sae, transform, device
-    )
+
+    if CONFIG["use_saved_activations"]:
+        print(f"Loading pre-saved activations from: {CONFIG['activations_dir']}")
+        subset_indices = None
+        if CONFIG["debug"]:
+            subset_indices = list(range(CONFIG["debug_size"]))
+        features, act_metadata = load_sae_features_from_saved(
+            CONFIG["activations_dir"],
+            sae,
+            device=device,
+            layer_idx=0,
+            subset_indices=subset_indices
+        )
+        if subset_indices:
+            labels = [dataset[i][1] for i in subset_indices]
+        else:
+            labels = [dataset[i][1] for i in range(len(dataset))]
+    else:
+        print("Extracting activations fresh from images")
+        print("Loading DINOv2...")
+        vit = DinoV2Wrapper(CONFIG["vit_checkpoint"])
+        vit_recorder = ActivationRecorder(vit, CONFIG["n_patches"], [CONFIG["layer_id"]])
+        vit_recorder = vit_recorder.to(device)
+        vit_recorder.eval()
+
+        transform = get_image_transform()
+        features, labels = extract_sae_features(
+            dataloader, vit_recorder, sae, transform, device
+        )
 
     print(f"Extracted features for {len(features)} images")
     print(f"Feature shape per image: {features[0].shape}")
