@@ -32,10 +32,10 @@ CONFIG = {
     "mllm_backend": "qwen",
     "openai_model": "gpt-5-mini",
     "n_images": 1,
-    "activation_thresh": 0.1,
-    "trait_thresh": 1e-6,
+    "activation_thresh": 0.05,
+    "trait_thresh": 1e-8,
     "debug": True, # True if we want to use a subset of data (true for now)
-    "debug_size": 100,  # no of images in debug mode
+    "debug_size": 500,  # no of images in debug mode
     "max_traits_per_species": 10,
     "seed": 42,
 }
@@ -109,7 +109,7 @@ class SparseAutoencoder(nn.Module):
         self.b_dec = nn.Parameter(torch.zeros(d_input))
         # weights, we use Kaiming He init
         nn.init.kaiming_uniform_(self.W_enc)
-        nn.init.kaiming_uniform_(self.b_enc)
+        nn.init.zeros_(self.b_enc)
 
     def encode(self, x):
         h_pre = (x - self.b_dec) @ self.W_enc + self.b_enc
@@ -280,7 +280,7 @@ def load_image_dataset(data_dir, batch_size=32, subset_size=None):
     if subset_size:
         indices =list(range(min(subset_size, len(dataset))))
         dataset = Subset(dataset, indices)
-        dataset.classes = dataset.ImageFolder(root=data_dir).classes
+        dataset.classes = datasets.ImageFolder(root=data_dir).classes
 
     def collate_fn(batch):
         images, labels = zip(*batch)
@@ -315,7 +315,7 @@ def extract_sae_features(dataloader, vit_recorder, sae, transform, device="cuda"
 
 # prominent trait detection
 
-def find_prominent_traits(features, labels, class_names, activation_tresh = 0.9, trait_tresh = 1e-4):
+def find_prominent_traits(features, labels, class_names, activation_thresh = 0.9, trait_thresh = 1e-4):
     """SAE latents that are prominent at species level. Prominent for a species if:
         1. it activates above the threshold for that species
         2. activation frequency is higher for the species than for the genus
@@ -336,7 +336,7 @@ def find_prominent_traits(features, labels, class_names, activation_tresh = 0.9,
     for i, feat in enumerate(tqdm(features, desc="Processing SAE features")):
         species = species_label[i]
         genus = genus_labels[i]
-        active = (feat > activation_tresh).numpy().astype(int)
+        active = (feat > activation_thresh).numpy().astype(int)
         patch_indices, latent_indices = np.nonzero(active) # patch, latent idx pairs where they are active
 
         latent_to_patch_map[i] = defaultdict(list)
@@ -367,7 +367,7 @@ def find_prominent_traits(features, labels, class_names, activation_tresh = 0.9,
             sp_ratio = sp_freq / sp_total
             gen_ratio = gen_freq / gen_total
 
-            if sp_ratio > trait_tresh and gen_ratio > trait_tresh and sp_ratio > gen_ratio:
+            if sp_ratio > trait_thresh and gen_ratio > trait_thresh and sp_ratio > gen_ratio:
                 prominent_traits[species].append({
                     'latent_idx': latent_id,
                     'ex_id': i,
