@@ -16,12 +16,13 @@ from PIL import Image
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 from tqdm import tqdm
+import io
 
 CONFIG = {
     "data_dir": "/workspace/Datasets/bioscan-5m/bioscan5m/images/cropped_256/train",
     "sae_checkpoint": "/workspace/checkpoints/sae.pt",
     "output_dir": "/workspace/trait_output",
-    "use_saved_activations": False,
+    "use_saved_activations": True,
     "activations_dir": "/workspace/Datasets/bioscan_activations/7826a159f94da805f7a22de978079f6e0bdf25d1871e3e60dcf48905950cd053",
     "vit_checkpoint": "dinov2_vitb14",
     "layer_id": 10,
@@ -29,10 +30,10 @@ CONFIG = {
     "mllm_backend": "qwen",
     "openai_model": "gpt-5-mini",
     "n_images": 1,
-    "activation_thresh": 0.1,
-    "trait_thresh": 1e-6,
+    "activation_thresh": 0.05,
+    "trait_thresh": 1e-8,
     "debug": True, # True if we want to use a subset of data (true for now)
-    "debug_size": 100,  # no of images in debug mode
+    "debug_size": 500,  # no of images in debug mode
     "max_traits_per_species": 10,
     "seed": 42,
 }
@@ -107,7 +108,7 @@ class SparseAutoencoder(nn.Module):
         self.b_dec = nn.Parameter(torch.zeros(d_input))
         # weights, we use Kaiming He init
         nn.init.kaiming_uniform_(self.W_enc)
-        nn.init.kaiming_uniform_(self.b_enc)
+        nn.init.zeros_(self.b_enc)
 
     def encode(self, x):
         h_pre = (x - self.b_dec) @ self.W_enc + self.b_enc
@@ -258,7 +259,7 @@ def load_image_dataset(data_dir, batch_size=32, subset_size=None):
     if subset_size:
         indices =list(range(min(subset_size, len(dataset))))
         dataset = Subset(dataset, indices)
-        dataset.classes = dataset.ImageFolder(root=data_dir).classes
+        dataset.classes = datasets.ImageFolder(root=data_dir).classes
 
     def collate_fn(batch):
         images, labels = zip(*batch)
