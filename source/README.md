@@ -60,4 +60,8 @@ With the SAE:
 uv run python -m source.trait_annotation_sae.py
 ```
 
+### 6. Background Bias Analysis
 
+```bash
+uv run python -m source.background_bias
+```
