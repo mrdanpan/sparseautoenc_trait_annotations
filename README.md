@@ -4,6 +4,8 @@
 
 In this repository we implement code allowing us to pre-process the dataset so as to organize the images by species, to obtain the ViT patches necessary for training the SAE, the code defining the SAE and training it, as well as code to visualize the latents produced by the SAE and code to generate trait descriptions with an MLLM.
 
+All the work has been reimplemented based on our interpretations from the original paper. We have also added extra analysis of the background ablation to the code and the poster.
+
 ## Students
 
 Daniel PANARITI, Defne OZGUVEN, Christine ANTON
@@ -70,7 +72,7 @@ With the SAE:
 uv run python -m source.trait_annotation_sae
 ```
 
-### 6. Background Bias Analysis
+### 6. Background Bias Analysis (our additional analysis)
 
 ```bash
 uv run python -m source.background_bias
